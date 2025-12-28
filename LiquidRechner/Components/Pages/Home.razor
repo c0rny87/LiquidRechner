@@ -1,7 +1,141 @@
 ﻿@page "/"
+@rendermode InteractiveServer
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Liquid Rechner</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="container mt-4" style="max-width: 800px;">
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h3 class="mb-0">🧪 Liquid Mischrechner</h3>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <!-- Linke Spalte: Ziele -->
+                <div class="col-md-6">
+                    <h5 class="border-bottom pb-2">Zielvorgaben</h5>
+                    <div class="mb-3">
+                        <label class="form-label">Zielmenge (ml)</label>
+                        <input type="number" class="form-control" @bind="Recipe.TargetAmount" @bind:after="Recalculate" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nikotinstärke (mg/ml)</label>
+                        <input type="number" class="form-control" @bind="Recipe.TargetNicotine" @bind:after="Recalculate" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Aromaanteil (%)</label>
+                        <input type="number" class="form-control" @bind="Recipe.AromaPercentage" @bind:after="Recalculate" />
+                    </div>
+                </div>
 
-Welcome to your new app.
+                <!-- Rechte Spalte: Rohstoffe -->
+                <div class="col-md-6">
+                    <h5 class="border-bottom pb-2">Vorhandene Basen</h5>
+                    <div class="mb-3">
+                        <label class="form-label">Basis 1: VG-Anteil (%)</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" @bind="Recipe.Base1VgRatio" @bind:after="Recalculate" />
+                            <span class="input-group-text">VG</span>
+                        </div>
+                        <small class="text-muted">Rest ist PG (z.B. 70 eingeben für 70/30)</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Basis 2: VG-Anteil (%)</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" @bind="Recipe.Base2VgRatio" @bind:after="Recalculate" />
+                            <span class="input-group-text">VG</span>
+                        </div>
+                        <small class="text-muted">0 eingeben für 100% PG</small>
+                    </div>
+
+                    <!-- Versteckte/Erweiterte Einstellung für Shots -->
+                    <div class="mt-4 p-2 bg-light rounded">
+                        <label class="small fw-bold">Nikotin-Shot Basis:</label>
+                        <div class="d-flex gap-2 align-items-center">
+                            <input type="number" class="form-control form-control-sm" style="width: 60px" @bind="Recipe.NicShotVgRatio" @bind:after="Recalculate" />
+                            <span class="small">% VG</span>
+                            <span class="small">| 20mg/ml</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <hr />
+
+            <!-- Ergebnisse -->
+            @if (!Recipe.IsPossible)
+            {
+                <div class="alert alert-danger">
+                    <strong>Nicht möglich!</strong> @Recipe.ErrorMessage
+                </div>
+            }
+            else
+            {
+                <h4 class="mt-4 text-success">Rezeptur</h4>
+                <table class="table table-striped table-hover mt-3">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Komponente</th>
+                            <th>Menge (ml)</th>
+                            <th>Menge (g) <small style="font-weight:normal">*ca.</small></th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Nikotin Shots</strong></td>
+                            <td class="fw-bold">@Recipe.VolNicShot.ToString("F1") ml</td>
+                            <td>@((Recipe.VolNicShot * 1.20).ToString("F1")) g</td>
+                            <td>@((Recipe.VolNicShot / 10).ToString("F1")) Flaschen</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Aroma</strong></td>
+                            <td class="fw-bold">@Recipe.VolAroma.ToString("F1") ml</td>
+                            <td>@((Recipe.VolAroma * 1.036).ToString("F1")) g</td>
+                            <td>@Recipe.AromaPercentage %</td>
+                        </tr>
+                        <tr class="table-primary">
+                            <td><strong>Basis 1 (@Recipe.Base1VgRatio VG)</strong></td>
+                            <td class="fw-bold fs-5">@Recipe.VolBase1.ToString("F1") ml</td>
+                            <td>@GetWeight(Recipe.VolBase1, Recipe.Base1VgRatio).ToString("F1") g</td>
+                            <td>Haupt-VG Quelle</td>
+                        </tr>
+                        <tr class="table-info">
+                            <td><strong>Basis 2 (@Recipe.Base2VgRatio VG)</strong></td>
+                            <td class="fw-bold fs-5">@Recipe.VolBase2.ToString("F1") ml</td>
+                            <td>@GetWeight(Recipe.VolBase2, Recipe.Base2VgRatio).ToString("F1") g</td>
+                            <td>Füller / PG</td>
+                        </tr>
+                        <tr class="fw-bold border-top border-3">
+                            <td>Gesamt</td>
+                            <td>@Recipe.TargetAmount.ToString("F0") ml</td>
+                            <td>-</td>
+                            <td>50/50 VPG Ziel</td>
+                        </tr>
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    public LiquidRecipe Recipe { get; set; } = new LiquidRecipe();
+
+    protected override void OnInitialized()
+    {
+        Recalculate();
+    }
+
+    private void Recalculate()
+    {
+        Recipe.Calculate();
+    }
+
+    // Hilfsfunktion für Gewichtsschätzung
+    private double GetWeight(double ml, double vgRatio)
+    {
+        // Dichte VG ~1.26, PG ~1.04
+        double density = (vgRatio / 100.0 * 1.261) + ((100 - vgRatio) / 100.0 * 1.036);
+        return ml * density;
+    }
+}
